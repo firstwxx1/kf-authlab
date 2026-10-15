@@ -1,0 +1,21 @@
+name: tmp-measure
+on:
+  workflow_dispatch:
+    inputs:
+      n:
+        default: "3000"
+      conc:
+        default: "20"
+      user:
+        default: "admin"
+permissions:
+  contents: read
+jobs:
+  m:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: run
+        run: |
+          python3 measure.py "${{ github.event.inputs.n }}" "${{ github.event.inputs.conc }}" "${{ github.event.inputs.user }}"
