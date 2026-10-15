@@ -1,0 +1,12 @@
+name: tmp-probe
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  m:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 probe.py
