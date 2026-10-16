@@ -10,10 +10,12 @@ jobs:
     steps:
       - name: egress
         run: |
-          echo "== ipify =="; curl -s -m 15 https://api.ipify.org; echo
-          echo "== ifconfig.me =="; curl -s -m 15 https://ifconfig.me; echo
-          echo "== api.kufaka getPublicKey =="; curl -s -m 15 -o /dev/null -w "http=%{http_code} ip=%{remote_ip}\n" https://api.kufaka.com/admin/auth/getPublicKey
-          echo "== www.kufaka login =="; curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" https://www.kufaka.com/adminApi/auth/login
-          echo "== lbapi source settings/public =="; curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" http://154.222.19.143:8080/api/v1/settings/public
-          echo "== lbapi.xyz =="; curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" https://lbapi.xyz/api/v1/settings/public
-          echo "== api.ipify json =="; curl -s -m 15 https://api.ipify.org?format=json; echo
+          set +e
+          echo "== ipify =="; curl -s -m 15 https://api.ipify.org || true; echo
+          echo "== ipinfo =="; curl -s -m 15 https://ipinfo.io/ip || true; echo
+          echo "== https api.kufaka getPublicKey =="; curl -s -m 15 -o /dev/null -w "http=%{http_code} remote=%{remote_ip}\n" https://api.kufaka.com/admin/auth/getPublicKey || true
+          echo "== https www.kufaka login =="; curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" https://www.kufaka.com/adminApi/auth/login || true
+          echo "== http lbapi src :8080 =="; curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" http://154.222.19.143:8080/api/v1/settings/public || true
+          echo "== https lbapi.xyz =="; curl -s -m 15 -o /dev/null -w "http=%{http_code}\n" https://lbapi.xyz/api/v1/settings/public || true
+          echo "== resolve api.kufaka =="; getent hosts api.kufaka.com || true
+          echo done
