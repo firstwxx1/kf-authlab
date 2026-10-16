@@ -1,0 +1,36 @@
+name: tmp-brute2
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        default: "admin"
+      conc:
+        default: "12"
+      maxreq:
+        default: "100000"
+      nshards:
+        default: "20"
+      limit:
+        default: "0"
+      offset:
+        default: "0"
+permissions:
+  contents: read
+jobs:
+  b:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
+    steps:
+      - uses: actions/checkout@v4
+      - name: run
+        env:
+          USERS: ${{ github.event.inputs.users }}
+          CONC: ${{ github.event.inputs.conc }}
+          LIMIT: ${{ github.event.inputs.limit }}
+          OFFSET: ${{ github.event.inputs.offset }}
+        run: python3 brute2.py ${{ matrix.shard }} ${{ github.event.inputs.nshards }} ${{ github.event.inputs.maxreq }}
