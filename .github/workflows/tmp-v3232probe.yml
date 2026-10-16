@@ -1,0 +1,19 @@
+name: tmp-v3232probe
+on:
+  workflow_dispatch:
+    inputs:
+      n:
+        default: "200"
+      pace:
+        default: "0.5"
+      conc:
+        default: "2"
+permissions:
+  contents: read
+jobs:
+  p:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 v3232probe.py ${{ github.event.inputs.n }} ${{ github.event.inputs.pace }} ${{ github.event.inputs.conc }}
