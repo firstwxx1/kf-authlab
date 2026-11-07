@@ -8,6 +8,7 @@ PORT = int(os.environ.get('TARGET_PORT', '22'))
 MODE = os.environ.get('MODE', 'calib').strip()
 COMBO_FILE = os.environ.get('COMBO_FILE', 'calib_combos.txt')
 GLOBAL_OFFSET = int(os.environ.get('GLOBAL_OFFSET', '0'))
+GLOBAL_END = int(os.environ.get('GLOBAL_END', '0'))
 SHARD = int(os.environ.get('SHARD', '0'))
 NSHARD = int(os.environ.get('NSHARD', '1'))
 RATE = float(os.environ.get('RATE', '8'))
@@ -139,7 +140,7 @@ def calib():
 
 def brute():
     import heapq
-    log('=== BRUTE START %s runner=%s host=%s:%d shard=%d/%d offset=%d rate=%.2f maxsec=%d ===' %
+    log('=== BRUTE START %s runner=%s host=%s:%d shard=%d/%d offset=%d end=%d rate=%.2f maxsec=%d ===' %
         (ts(), RUNNER, HOST, PORT, SHARD, NSHARD, GLOBAL_OFFSET, RATE, MAXSEC))
     log('SRC_IP:', src_ip())
     log('BANNER:', read_banner())
@@ -173,6 +174,8 @@ def brute():
             idx += 1
             if idx < GLOBAL_OFFSET:
                 continue
+            if GLOBAL_END and idx >= GLOBAL_END:
+                break
             if idx % NSHARD != SHARD:
                 continue
             line = line.rstrip('\n')
